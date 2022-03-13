@@ -4,7 +4,7 @@
 //pin setup code
 #define voltageSig A1
 #define currentSig A2
-#define motor1 10
+#define motor1 10 //motors on the drone are labeled similar to quadrants on a x-y plane
 #define motor2 9
 #define motor3 8
 #define motor4 7
@@ -12,8 +12,12 @@
 //basic control setup code
 double sourceVoltage = 0.0;
 double sCurrent = 0.0;
+double maxVel = 5.0;
+double maxAngle = 180.0;
 float xAcc, yAcc, zAcc = 0.0;
 float xAngle, yAngle, zAngle = 0.0;
+float xAngleC, yAngleC, zAngleC = 0.0;
+int rangedXVel, rangedYVel, rangedZVel, rangedXAngle, rangedYAngle, rangedZAngle = 0;
 int motor1Set, motor2Set, motor3Set, motor4Set = 0;
 
 //PID setup code
@@ -63,7 +67,7 @@ double getCurrent() {
 }
 void updateAcc() {
   if (IMU.accelerationAvailable()) {
-    IMU.readAcceleration(xAcc, yAcc, zAcc);  
+    IMU.readAcceleration(xAcc, yAcc, zAcc);
   }
 }
 void updateVel() {
@@ -74,25 +78,37 @@ void updateVel() {
 }
 void updateAngle() {
   if (IMU.gyroscopeAvailable()) {
-    IMU.readGyroscope(xAngle, yAngle, zAngle);  
+    IMU.readGyroscope(xAngleC, yAngleC, zAngleC);
   }
+  xAngle += (xAngleC * float(IMU.gyroscopeSampleRate()));
+  yAngle += (yAngleC * float(IMU.gyroscopeSampleRate()));
+  zAngle += (zAngleC * float(IMU.gyroscopeSampleRate()));
 }
 
 //setpoint value functions
 void updateXVelSetpoint() {
   double setpoint = 0.0;
+  //the drone can be set to a max velocity of 4.0
+  if (setpoint > (maxVel - 1.0)) { setpoint = maxVel; }
+  else if (setpoint < 0.2) { setpoint = 0.0; }
   xVelSet = setpoint;
 }
 void updateYVelSetpoint() {
   double setpoint = 0.0;
+  if (setpoint > (maxVel - 1.0)) { setpoint = maxVel; }
+  else if (setpoint < 0.2) { setpoint = 0.0; }
   yVelSet = setpoint;
 }
 void updateZVelSetpoint() {
   double setpoint = 0.0;
+  if (setpoint > (maxVel - 1.0)) { setpoint = maxVel; }
+  else if (setpoint < 0.2) { setpoint = 0.0; }
   zVelSet = setpoint;
 }
 void updateZAngleSetpoint() {
   double setpoint = 0.0;
+  if (setpoint > maxAngle) { setpoint = maxAngle; }
+  else if (setpoint < 2) { setpoint = 0.0; }
   zAngleSet = setpoint;
 }
 void updatePIDValues() {
@@ -108,6 +124,109 @@ void computePID() {
   xVelPID.Compute();
   yVelPID.Compute();
   zVelPID.Compute();
+}
+void rangeZVel() {
+  if (double(abs((zVelOut))) > maxVel) { 
+    if (zVelOut < 0) {
+      zVelOut = (maxVel * -1); 
+    }
+    else {
+      zVelOut = maxVel; 
+    }
+  }
+  //this scales the z velocity from 0 to 2*maxVel and then scales it from 0 to maxVel
+  zVelOut += maxVel;
+  zVelOut /= 2;
+  //this ranges the z velocity PID output on a scale from 0 to 160 b/c this is essentially thrust
+  double rangeCalc = (zVelOut * 160.0) / maxVel;
+  if (rangeCalc < 5.0) { rangeCalc = 0.0; }
+  rangedZVel = int(rangeCalc);
+}
+void rangeXVel() {
+  //the PID can adjust the drone to have a max correction up to a velocity of 5.0
+  if (double(abs((xVelOut))) > maxVel) { 
+    if (xVelOut < 0) {
+      xVelOut = (maxVel * -1); 
+    }
+    else {
+      xVelOut = maxVel; 
+    }
+  }
+  //this ranges the x velocity PID output on a scale from -rangedZVel to rangedZVel
+  double rangeCalc = (xVelOut * double(rangedZVel)) / maxVel;
+  if (abs(rangeCalc) < 5.0) { rangeCalc = 0.0; }
+  rangedXVel = int(rangeCalc);
+}
+void rangeYVel() {
+  if (double(abs((yVelOut))) > maxVel) { 
+    if (yVelOut < 0) {
+      yVelOut = (maxVel * -1); 
+    }
+    else {
+      yVelOut = maxVel; 
+    }
+  }
+  //this ranges the y velocity PID output on a scale from -rangedZVel to rangedZVel
+  double rangeCalc = (yVelOut * double(rangedZVel)) / maxVel;
+  if (abs(rangeCalc) < 5.0) { rangeCalc = 0.0; }
+  rangedYVel = int(rangeCalc);
+}
+void rangeXAngle() {
+  if (xAngleOut > maxAngle) { xAngleOut = maxAngle; }
+  //this ranges the x angle PID output on a scale from -90 to 90
+  double rangeCalc = (xAngleOut * 90.0) / maxAngle;
+  if (abs(rangeCalc) < 2.0) { rangeCalc = 0.0; }
+  rangedXAngle = int(rangeCalc);
+}
+void rangeYAngle() {
+  if (yAngleOut > maxAngle) { yAngleOut = maxAngle; }
+  //this ranges the y angle PID output on a scale from -90 to 90
+  double rangeCalc = (yAngleOut * 90.0) / maxAngle;
+  if (abs(rangeCalc) < 2.0) { rangeCalc = 0.0; }
+  rangedYAngle = int(rangeCalc);
+}
+void rangeZAngle() {
+  if (zAngleOut > maxAngle) { zAngleOut = maxAngle; }
+  //this ranges the z angle PID output on a scale from -90 to 90
+  double rangeCalc = (zAngleOut * 90.0) / maxAngle;
+  if (abs(rangeCalc) < 2.0) { rangeCalc = 0.0; }
+  rangedZAngle = int(rangeCalc);
+}
+void rangeValues() {
+  rangeXVel();
+  rangeYVel();
+  rangeZVel();
+  rangeXAngle();
+  rangeYAngle();
+  rangeZAngle();
+}
+void initialMotorSets() {
+  double motor1CalcX = (double(rangedXVel) / 4.0);
+  //3/4 of the ranged velocity to make it strafe forwards/ backwards
+  if (rangedXVel < 0) { motor1CalcX *= -3; }
+  //3/4 of the ranged velocity to make it strafe left/ right
+  double motor1CalcY = (double(rangedYVel) / 4.0);
+  if (rangedYVel > 0) { motor1CalcY *= 3; }
+  //add in left/ right (y axis) strafing if both at same time- chooses the greater of the two values
+  motor1Set = int((motor1CalcX == motor1CalcY) ? motor1CalcX : (motor1CalcX > motor1CalcY) ? motor1CalcX : motor1CalcY);
+  
+  double motor2CalcX = (double(rangedXVel) / 4.0);
+  if (rangedXVel < 0) { motor2CalcX *= -3; }
+  double motor2CalcY = (double(rangedYVel) / 4.0);
+  if (rangedYVel < 0) { motor2CalcY *= -3; }
+  motor2Set = int((motor2CalcX == motor2CalcY) ? motor2CalcX : (motor2CalcX > motor2CalcY) ? motor2CalcX : motor2CalcY);
+  
+  double motor3CalcX = (double(rangedXVel) / 4.0);
+  if (rangedXVel > 0) { motor3CalcX *= 3; }
+  double motor3CalcY = (double(rangedYVel) / 4.0);
+  if (rangedYVel < 0) { motor3CalcY *= -3; }
+  motor3Set = int((motor3CalcX == motor3CalcY) ? motor3CalcX : (motor3CalcX > motor3CalcY) ? motor3CalcX : motor3CalcY);
+  
+  double motor4CalcX = (double(rangedXVel) / 4.0);
+  if (rangedXVel > 0) { motor4CalcX *= 3; }
+  double motor4CalcY = (double(rangedYVel) / 4.0);
+  if (rangedYVel > 0) { motor4CalcY *= 3; }
+  motor4Set = int((motor4CalcX == motor4CalcY) ? motor4CalcX : (motor4CalcX > motor4CalcY) ? motor4CalcX : motor4CalcY);
 }
 
 void setup() {
@@ -152,15 +271,17 @@ void loop() {
   else {
       if (sCurrent > 139.0) { //140A safe continuous cutoff
           Serial.println("Current at or above 139 amps, not safe to continue.");
-      }
-      //operate normally
-      if (xVelSet == 0.0) { //level y-axis if x velocity is 0.0
+      } //otherwise, continue with normal operation
+      //range the x,y,z velocities from -160 to 160 and x,y,z angles from -90 to 90 PWM
+      rangeValues();
+      //intially set the motor PWMs for strafing (with a max of 120 PWM b/c of 3/4 calc)
+      initialMotorSets();
+
+      //continue from here- write the code to make the drone re-level when x velocity is 0.0 and when y velocity is 0.0 and write code to make it turn (z angle)
+      if (xVel == 0.0) { //level y-axis if x velocity is 0.0
         //need to test out the range of angles on the IMU first
         
       }
-      //x-axis leveling code here
-      //need to write code to set the motor power so that it can turn using z axis angle
-      //need to write code to set the motor power so that it can strafe and move up/ down
       analogWrite(motor1, motor1Set);
       analogWrite(motor2, motor2Set);
       analogWrite(motor3, motor3Set);
