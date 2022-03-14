@@ -1,3 +1,5 @@
+//note- fix strafing, leveling correction, and z-axis rotation based on orientation of Arduino Nano on the drone
+
 #include <Arduino_LSM6DSOX.h>
 #include <PID_v1.h>
 
@@ -13,9 +15,9 @@
 double sourceVoltage = 0.0;
 double sCurrent = 0.0;
 double maxVel = 5.0;
-double maxAngle = 180.0;
+double maxAngle = 360.0;
 float xAcc, yAcc, zAcc = 0.0;
-float xAngle, yAngle, zAngle = 0.0;
+double xAngle, yAngle, zAngle = 0.0;
 float xAngleC, yAngleC, zAngleC = 0.0;
 int rangedXVel, rangedYVel, rangedZVel, rangedXAngle, rangedYAngle, rangedZAngle = 0;
 int motor1Set, motor2Set, motor3Set, motor4Set = 0;
@@ -26,18 +28,18 @@ double kp1 = 0.0;
 double ki1 = 0.0;
 double kd1 = 0.0;
 //only used when x, y, or z velocity is set to 0.0
-PID xAnglePID(double(&xAngle), &xAngleOut, &xAngleSet, kp1, ki1, kd1, DIRECT);
+PID xAnglePID(&xAngle, &xAngleOut, &xAngleSet, kp1, ki1, kd1, DIRECT);
 double yAngleOut, yAngleSet = 0.0; //note that yAngleSet will always be set to 0.0 to make sure it re-levels
 double kp2 = 0.0;
 double ki2 = 0.0;
 double kd2 = 0.0;
 //only used when x, y, or z velocity is set to 0.0
-PID yAnglePID(double(&yAngle), &yAngleOut, &yAngleSet, kp2, ki2, kd2, DIRECT);
+PID yAnglePID(&yAngle, &yAngleOut, &yAngleSet, kp2, ki2, kd2, DIRECT);
 double zAngleOut, zAngleSet = 0.0;
 double kp3 = 0.0;
 double ki3 = 0.0;
 double kd3 = 0.0;
-PID zAnglePID(double(&zAngle), &zAngleOut, &zAngleSet, kp3, ki3, kd3, DIRECT);
+PID zAnglePID(&zAngle, &zAngleOut, &zAngleSet, kp3, ki3, kd3, DIRECT);
 double xVel, xVelOut, xVelSet = 0.0;
 double kp4 = 0.0;
 double ki4 = 0.0;
@@ -80,9 +82,9 @@ void updateAngle() {
   if (IMU.gyroscopeAvailable()) {
     IMU.readGyroscope(xAngleC, yAngleC, zAngleC);
   }
-  xAngle += (xAngleC * float(IMU.gyroscopeSampleRate()));
-  yAngle += (yAngleC * float(IMU.gyroscopeSampleRate()));
-  zAngle += (zAngleC * float(IMU.gyroscopeSampleRate()));
+  xAngle += (double(xAngleC) * double(IMU.gyroscopeSampleRate()));
+  yAngle += (double(yAngleC) * double(IMU.gyroscopeSampleRate()));
+  zAngle += (double(zAngleC) * double(IMU.gyroscopeSampleRate()));
 }
 
 //setpoint value functions
@@ -108,7 +110,7 @@ void updateZVelSetpoint() {
 void updateZAngleSetpoint() {
   double setpoint = 0.0;
   if (setpoint > maxAngle) { setpoint = maxAngle; }
-  else if (setpoint < 2) { setpoint = 0.0; }
+  else if (setpoint < 1.0) { setpoint = 0.0; }
   zAngleSet = setpoint;
 }
 void updatePIDValues() {
@@ -172,24 +174,47 @@ void rangeYVel() {
   rangedYVel = int(rangeCalc);
 }
 void rangeXAngle() {
-  if (xAngleOut > maxAngle) { xAngleOut = maxAngle; }
+  //this rectifies the input to a range of -180 to 180 deg
+  if (double(abs((xAngleOut))) > (maxAngle / 2.0)) { 
+    if (xAngleOut < 0) {
+      xAngleOut = ((maxAngle / 2.0) * -1); 
+    }
+    else {
+      xAngleOut = maxAngle / 2.0; 
+    }
+  }
   //this ranges the x angle PID output on a scale from -90 to 90
-  double rangeCalc = (xAngleOut * 90.0) / maxAngle;
+  double rangeCalc = (xAngleOut * 90.0) / (maxAngle / 2.0);
   if (abs(rangeCalc) < 2.0) { rangeCalc = 0.0; }
   rangedXAngle = int(rangeCalc);
 }
 void rangeYAngle() {
-  if (yAngleOut > maxAngle) { yAngleOut = maxAngle; }
-  //this ranges the y angle PID output on a scale from -90 to 90
-  double rangeCalc = (yAngleOut * 90.0) / maxAngle;
+  if (double(abs((yAngleOut))) > (maxAngle / 2.0)) { 
+    if (yAngleOut < 0) {
+      yAngleOut = ((maxAngle / 2.0) * -1); 
+    }
+    else {
+      yAngleOut = maxAngle / 2.0; 
+    }
+  }
+  //this ranges the x angle PID output on a scale from -90 to 90
+  double rangeCalc = (yAngleOut * 90.0) / (maxAngle / 2.0);
   if (abs(rangeCalc) < 2.0) { rangeCalc = 0.0; }
   rangedYAngle = int(rangeCalc);
 }
 void rangeZAngle() {
-  if (zAngleOut > maxAngle) { zAngleOut = maxAngle; }
+  //this rectifies the input to a range of -360 to 360 deg
+  if (double(abs((zAngleOut))) > maxAngle) {
+    if (zAngleOut < 0) {
+      zAngleOut = (maxAngle * -1); 
+    }
+    else {
+      zAngleOut = maxAngle; 
+    }
+  }
   //this ranges the z angle PID output on a scale from -90 to 90
-  double rangeCalc = (zAngleOut * 90.0) / maxAngle;
-  if (abs(rangeCalc) < 2.0) { rangeCalc = 0.0; }
+  double rangeCalc = (zAngleOut * 40.0) / maxAngle;
+  if (abs(rangeCalc) < 1.0) { rangeCalc = 0.0; }
   rangedZAngle = int(rangeCalc);
 }
 void rangeValues() {
@@ -272,15 +297,38 @@ void loop() {
       if (sCurrent > 139.0) { //140A safe continuous cutoff
           Serial.println("Current at or above 139 amps, not safe to continue.");
       } //otherwise, continue with normal operation
-      //range the x,y,z velocities from -160 to 160 and x,y,z angles from -90 to 90 PWM
+      
+      //range the x,y,z velocities from -160 to 160, x and y angles from -90 to 90, and z angle from -40 to 40 PWM
       rangeValues();
       //intially set the motor PWMs for strafing (with a max of 120 PWM b/c of 3/4 calc)
       initialMotorSets();
-
-      //continue from here- write the code to make the drone re-level when x velocity is 0.0 and when y velocity is 0.0 and write code to make it turn (z angle)
-      if (xVel == 0.0) { //level y-axis if x velocity is 0.0
-        //need to test out the range of angles on the IMU first
-        
+      if (((xVel < 0.2) && (xVel > 0)) || ((xVel > -0.2) && (xVel < 0))) { //level x-axis if x velocity is less than 0.2 b/c oriented sideways- with USB outlet facing the right side
+        if (rangedXAngle < 0) { //raise up the front if the back is too high
+          motor1Set -= rangedXAngle;
+          motor2Set -= rangedXAngle;
+        }
+        else { //raise up the back if the front is too high
+          motor1Set += rangedXAngle;
+          motor2Set += rangedXAngle;
+        }
+      }
+      if (((yVel < 0.2) && (yVel > 0)) || ((yVel > -0.2) && (yVel < 0))) { //level y-axis if y velocity is less than 0.2 b/c oriented sideways
+        if (rangedYAngle > 0) { //raise up the right if the left is too high
+          motor1Set += rangedYAngle;
+          motor4Set += rangedYAngle;
+        }
+        else { //raise up the left if the right is too high
+          motor2Set -= rangedYAngle;
+          motor3Set -= rangedYAngle;
+        }
+      }
+      if (rangedZAngle > 0) { //turn right for positive z angle error
+        motor2Set += rangedZAngle;
+        motor4Set += rangedZAngle;
+      }
+      else { //turn left for negative z angle error
+        motor1Set -= rangedZAngle;
+        motor3Set -= rangedZAngle;
       }
       analogWrite(motor1, motor1Set);
       analogWrite(motor2, motor2Set);
