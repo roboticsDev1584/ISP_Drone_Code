@@ -12,9 +12,9 @@ double maxVel = 5.0;
 double maxAngle = 360.0;
 float xAcc = 0.0, yAcc = 0.0, zAcc = 0.0;
 double xAngle = 0.0, yAngle = 0.0, zAngle = 0.0;
+double xAngleN = 0.0, yAngleN = 0.0, zAngleN = 0.0;
 float xAngleC = 0.0, yAngleC = 0.0, zAngleC = 0.0;
-double minXAngle = 3000.0, minYAngle = 3000.0, minZAngle = 3000.0;
-double maxXAngle = 1000000.0, maxYAngle = 1000000.0, maxZAngle = 1000000.0;
+double maxXAngle = 10000000.0, maxYAngle = 10000000.0, maxZAngle = 10000000.0;
 int rangedXVel = 0, rangedYVel = 0, rangedZVel = 0, rangedXAngle = 0, rangedYAngle = 0, rangedZAngle = 0;
 int motor1Set = 0, motor2Set = 0, motor3Set = 0, motor4Set = 0;
 
@@ -74,60 +74,46 @@ void updateAngle() {
   }
   //fix xAngleC tolerance
   if (((xAngleC > 0.6) && (xAngleC > 0)) || ((xAngleC < -0.6) && (xAngleC < 0))) {
-    xAngle += (double(xAngleC) * double(IMU.gyroscopeSampleRate()));
+    xAngleN += (double(xAngleC) * double(IMU.gyroscopeSampleRate()));
   }
   //fix yAngleC tolerance
   if (((yAngleC > 1.0) && (yAngleC > 0)) || ((yAngleC < -1.0) && (yAngleC < 0))) {
-    yAngle += (double(yAngleC) * double(IMU.gyroscopeSampleRate()));
+    yAngleN += (double(yAngleC) * double(IMU.gyroscopeSampleRate()));
   }
   //fix zAngleC tolerance
   if (((zAngleC > 0.7) && (zAngleC > 0)) || ((zAngleC < -0.7) && (zAngleC < 0))) {
-    zAngle += (double(zAngleC) * double(IMU.gyroscopeSampleRate()));
+    zAngleN += (double(zAngleC) * double(IMU.gyroscopeSampleRate()));
   }
   //normalize x angle value range
-  if (double(absolute((xAngle))) > maxXAngle) { 
-    if (xAngle < 0) {
-      xAngle = (maxXAngle * -1); 
+  if (double(absolute((xAngleN))) > maxXAngle) { 
+    if (xAngleN < 0) {
+      xAngleN = (maxXAngle * -1); 
     }
     else {
-      xAngle = maxXAngle; 
+      xAngleN = maxXAngle; 
     }
   }
-  if (double(absolute((xAngle))) < minXAngle) { xAngle = 0.0; }
-  //xAngle = (xAngle * 360.0) / maxXAngle;
+  xAngle = (xAngleN * 360.0) / maxXAngle;
   //normalize y angle value range
-  if (double(absolute((yAngle))) > maxYAngle) { 
-    if (yAngle < 0) {
-      yAngle = (maxYAngle * -1); 
+  if (double(absolute((yAngleN))) > maxYAngle) { 
+    if (yAngleN < 0) {
+      yAngleN = (maxYAngle * -1); 
     }
     else {
-      yAngle = maxYAngle; 
+      yAngleN = maxYAngle; 
     }
   }
-  if (double(absolute((yAngle))) < minYAngle) { yAngle = 0.0; }
-  //yAngle = (yAngle * 360.0) / maxYAngle;
+  yAngle = (yAngleN * 360.0) / maxYAngle;
   //normalize z angle value range
-  if (double(absolute((zAngle))) > maxZAngle) { 
-    if (xAngle < 0) {
-      zAngle = (maxZAngle * -1); 
+  if (double(absolute((zAngleN))) > maxZAngle) { 
+    if (zAngleN < 0) {
+      zAngleN = (maxZAngle * -1); 
     }
     else {
-      zAngle = maxZAngle; 
+      zAngleN = maxZAngle; 
     }
   }
-  zAngle = double(absolute(zAngle));
-  //if (double(abs((zAngle))) < minZAngle) { zAngle = 0.0; }
-  //zAngle = (zAngle) / maxZAngle;
-  
-  /*Rectify angle values
-  X Angle 0 deg = -3,000 to 3,000
-  X Angle 360 deg = 1,000,000
-  Y Angle 0 deg = -3,000 to 3,000
-  Y Angle 360 deg = 1,000,000
-  Z Angle 0 deg = -3,000 to 3,000
-  Z Angle 360 deg = 1,000,000
-  */
-  
+  zAngle = (zAngleN * 360.0) / maxZAngle;
 }
 void resetIMU() {
   Serial.println(F("Resetting IMU"));
