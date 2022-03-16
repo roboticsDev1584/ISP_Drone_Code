@@ -9,7 +9,7 @@ Z Axis Angle: more positive when rotated counterclockwise, more negative when ro
 
 //basic control setup code
 double maxVel = 5.0;
-double maxAngle = 360.0;
+double maxAngle = 180.0;
 float xAcc = 0.0, yAcc = 0.0, zAcc = 0.0;
 double xAngle = 0.0, yAngle = 0.0, zAngle = 0.0;
 double xAngleN = 0.0, yAngleN = 0.0, zAngleN = 0.0;
@@ -20,19 +20,19 @@ int motor1Set = 0, motor2Set = 0, motor3Set = 0, motor4Set = 0;
 
 //PID setup code
 double xAngleOut, xAngleSet = 0.0; //note that xAngleSet will always be set to 0.0 to make sure it re-levels
-double kp1 = 0.0;
+double kp1 = 1.0;
 double ki1 = 0.0;
 double kd1 = 0.0;
-//only used when x, y, or z velocity is set to 0.0
+//only used when x velocity is set to 0.0
 PID xAnglePID(&xAngle, &xAngleOut, &xAngleSet, kp1, ki1, kd1, DIRECT);
 double yAngleOut, yAngleSet = 0.0; //note that yAngleSet will always be set to 0.0 to make sure it re-levels
-double kp2 = 0.0;
+double kp2 = 1.0;
 double ki2 = 0.0;
 double kd2 = 0.0;
-//only used when x, y, or z velocity is set to 0.0
+//only used when y velocity is set to 0.0
 PID yAnglePID(&yAngle, &yAngleOut, &yAngleSet, kp2, ki2, kd2, DIRECT);
 double zAngleOut, zAngleSet = 0.0;
-double kp3 = 0.0;
+double kp3 = 1.0;
 double ki3 = 0.0;
 double kd3 = 0.0;
 PID zAnglePID(&zAngle, &zAngleOut, &zAngleSet, kp3, ki3, kd3, DIRECT);
@@ -143,7 +143,7 @@ void updateZVelSetpoint() {
 }
 void updateZAngleSetpoint() {
   double setpoint = 0.0;
-  if (setpoint > maxAngle) { setpoint = maxAngle; }
+  if (setpoint > (maxAngle * 2.0)) { setpoint = (maxAngle * 2.0); }
   else if (setpoint < 1.0) { setpoint = 0.0; }
   zAngleSet = setpoint;
 }
@@ -180,7 +180,7 @@ void rangeZVel() {
 }
 void rangeXVel() {
   //the PID can adjust the drone to have a max correction up to a velocity of 5.0
-  if (double(abs((xVelOut))) > maxVel) { 
+  if (double(absolute((xVelOut))) > maxVel) { 
     if (xVelOut < 0) {
       xVelOut = (maxVel * -1); 
     }
@@ -190,11 +190,11 @@ void rangeXVel() {
   }
   //this ranges the x velocity PID output on a scale from -rangedZVel to rangedZVel
   double rangeCalc = (xVelOut * double(rangedZVel)) / maxVel;
-  if (abs(rangeCalc) < 5.0) { rangeCalc = 0.0; }
+  if (absolute(rangeCalc) < 5.0) { rangeCalc = 0.0; }
   rangedXVel = int(rangeCalc);
 }
 void rangeYVel() {
-  if (double(abs((yVelOut))) > maxVel) { 
+  if (double(absolute((yVelOut))) > maxVel) { 
     if (yVelOut < 0) {
       yVelOut = (maxVel * -1); 
     }
@@ -204,14 +204,14 @@ void rangeYVel() {
   }
   //this ranges the y velocity PID output on a scale from -rangedZVel to rangedZVel
   double rangeCalc = (yVelOut * double(rangedZVel)) / maxVel;
-  if (abs(rangeCalc) < 5.0) { rangeCalc = 0.0; }
+  if (absolute(rangeCalc) < 5.0) { rangeCalc = 0.0; }
   rangedYVel = int(rangeCalc);
 }
 void rangeXAngle() {
   //this rectifies the input to a range of -180 to 180 deg
-  if (double(abs((xAngleOut))) > (maxAngle / 2.0)) { 
+  if (double(absolute((xAngleOut))) > (maxAngle / 2.0)) { 
     if (xAngleOut < 0) {
-      xAngleOut = ((maxAngle / 2.0) * -1); 
+      //xAngleOut = ((maxAngle / 2.0) * -1); 
     }
     else {
       xAngleOut = maxAngle / 2.0; 
@@ -219,36 +219,36 @@ void rangeXAngle() {
   }
   //this ranges the x angle PID output on a scale from -90 to 90
   double rangeCalc = (xAngleOut * 90.0) / (maxAngle / 2.0);
-  if (abs(rangeCalc) < 2.0) { rangeCalc = 0.0; }
+  if (absolute(rangeCalc) < 0.5) { rangeCalc = 0.0; }
   rangedXAngle = int(rangeCalc);
 }
 void rangeYAngle() {
-  if (double(abs((yAngleOut))) > (maxAngle / 2.0)) { 
+  if (double(absolute((yAngleOut))) > (maxAngle / 2.0)) { 
     if (yAngleOut < 0) {
-      yAngleOut = ((maxAngle / 2.0) * -1); 
+      //yAngleOut = ((maxAngle / 2.0) * -1); 
     }
     else {
       yAngleOut = maxAngle / 2.0; 
     }
   }
-  //this ranges the x angle PID output on a scale from -90 to 90
+  //this ranges the y angle PID output on a scale from -90 to 90
   double rangeCalc = (yAngleOut * 90.0) / (maxAngle / 2.0);
-  if (abs(rangeCalc) < 2.0) { rangeCalc = 0.0; }
+  if (absolute(rangeCalc) < 0.5) { rangeCalc = 0.0; }
   rangedYAngle = int(rangeCalc);
 }
 void rangeZAngle() {
   //this rectifies the input to a range of -360 to 360 deg
-  if (double(abs((zAngleOut))) > maxAngle) {
+  if (double(absolute((zAngleOut))) > (maxAngle * 2.0)) {
     if (zAngleOut < 0) {
-      zAngleOut = (maxAngle * -1); 
+      zAngleOut = (maxAngle * -2.0); 
     }
     else {
-      zAngleOut = maxAngle; 
+      zAngleOut = (maxAngle * 2.0); 
     }
   }
-  //this ranges the z angle PID output on a scale from -90 to 90
-  double rangeCalc = (zAngleOut * 40.0) / maxAngle;
-  if (abs(rangeCalc) < 1.0) { rangeCalc = 0.0; }
+  //this ranges the z angle PID output on a scale from -40 to 40
+  double rangeCalc = (zAngleOut * 40.0) / (maxAngle * 2.0);
+  if (absolute(rangeCalc) < 0.25) { rangeCalc = 0.0; }
   rangedZAngle = int(rangeCalc);
 }
 void rangeValues() {
@@ -266,8 +266,11 @@ void setup() {
     while(1);
   }
   xAnglePID.SetMode(AUTOMATIC);
+  xAnglePID.SetOutputLimits(-90,90);
   yAnglePID.SetMode(AUTOMATIC);
+  yAnglePID.SetOutputLimits(-90,90);
   zAnglePID.SetMode(AUTOMATIC);
+  zAnglePID.SetOutputLimits(-360,360);
   xVelPID.SetMode(AUTOMATIC);
   yVelPID.SetMode(AUTOMATIC);
   zVelPID.SetMode(AUTOMATIC);
