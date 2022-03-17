@@ -2,6 +2,11 @@
 X Axis Angle: more positive when rotated clockwise, more negative when rotated counterclockwise
 Y Axis Angle: more positive when rotated clockwise, more negative when rotated counterclockwise
 Z Axis Angle: more positive when rotated counterclockwise, more negative when rotated clockwise
+
+X Axis Velocity: more positive when moved left (with x axis vector), more negative when moved right (against x axis vector)
+Y Axis Velocity: more positive when moved back (with y axis vector), more negative when moved forwards (against y axis vector)
+Z Axis Velocity: more positive when moved up, more negative when moved down
+
 Z Velocity is the same thing as thrust
 */
 
@@ -9,9 +14,10 @@ Z Velocity is the same thing as thrust
 #include <PID_v1.h>
 
 //basic control setup code
-double maxVel = 5.0;
+double maxVel = 10.0;
 double maxAngle = 180.0;
 float xAcc = 0.0, yAcc = 0.0, zAcc = 0.0;
+float xAccOld = 0.0, yAccOld = 0.0, zAccOld = 1.0;
 double xAngle = 0.0, yAngle = 0.0, zAngle = 0.0;
 double xAngleN = 0.0, yAngleN = 0.0, zAngleN = 0.0;
 float xAngleC = 0.0, yAngleC = 0.0, zAngleC = 0.0;
@@ -58,19 +64,20 @@ double absolute(double num) {
   if (num < 0) { num *= -1.0; }
   return num;  
 }
-void updateAcc() {
+void updateVel() {
   if (IMU.accelerationAvailable()) {
     IMU.readAcceleration(xAcc, yAcc, zAcc);
   }
   if (((xAcc < 0.02) && (xAcc > 0)) || ((xAcc > -0.02) && (xAcc < 0))) { xAcc = 0.0; }
   if (((yAcc < 0.02) && (yAcc > 0)) || ((yAcc > -0.02) && (yAcc < 0))) { yAcc = 0.0; }
-  zAcc = zAcc - 1.0;
-}
-void updateVel() {
-  updateAcc();
-  xVel += (double(xAcc) * double(IMU.accelerationSampleRate()));
-  yVel += (double(yAcc) * double(IMU.accelerationSampleRate()));
-  zVel += (double(zAcc) * double(IMU.accelerationSampleRate()));
+  //xAcc - xAccOld
+  //we want the change in acceleration value divided by 9.8 since acceleration is measured in g's
+  xVel += (((double(xAcc) - double(xAccOld)) * double(IMU.accelerationSampleRate())) / 9.8);
+  yVel += (((double(yAcc) - double(yAccOld)) * double(IMU.accelerationSampleRate())) / 9.8);
+  zVel += (((double(zAcc) - double(zAccOld)) * double(IMU.accelerationSampleRate())) / 9.8);
+  xAccOld = xAcc;
+  yAccOld = yAcc;
+  zAccOld = zAcc;
 }
 void updateAngle() {
   if (IMU.gyroscopeAvailable()) {
@@ -128,21 +135,42 @@ void resetIMU() {
 //setpoint value functions
 void updateZVelSetpoint() {
   double setpoint = 0.0;
-  //the drone can be set to a max velocity of 5.0
-  if (setpoint > (maxVel)) { setpoint = maxVel; }
-  else if (setpoint < 0.1) { setpoint = 0.0; }
+  //the drone can be set to a max velocity of 10.0
+  if (absolute(setpoint) > maxVel) { 
+    if (setpoint < 0) {
+      setpoint = (maxVel * -1.0); 
+    }
+    else {
+      setpoint = maxVel; 
+    }
+  }
+  else if (absolute(setpoint) < 0.1) { setpoint = 0.0; }
   zVelSet = setpoint;
 }
 void updateXVelSetpoint() {
   double setpoint = 0.0;
-  if (setpoint > (zVelSet)) { setpoint = zVelSet; }
-  else if (setpoint < 0.1) { setpoint = 0.0; }
+  if (absolute(setpoint) > zVelSet) { 
+    if (setpoint < 0) {
+      setpoint = (zVelSet * -1.0); 
+    }
+    else {
+      setpoint = zVelSet; 
+    }
+  }
+  else if (absolute(setpoint) < 0.1) { setpoint = 0.0; }
   xVelSet = setpoint;
 }
 void updateYVelSetpoint() {
   double setpoint = 0.0;
-  if (setpoint > (maxVel)) { setpoint = maxVel; }
-  else if (setpoint < 0.1) { setpoint = 0.0; }
+  if (absolute(setpoint) > zVelSet) { 
+    if (setpoint < 0) {
+      setpoint = (zVelSet * -1.0); 
+    }
+    else {
+      setpoint = zVelSet; 
+    }
+  }
+  else if (absolute(setpoint) < 0.1) { setpoint = 0.0; }
   yVelSet = setpoint;
 }
 void updateZAngleSetpoint() {
@@ -166,7 +194,7 @@ void computePID() {
   zVelPID.Compute();
 }
 void rangeZVel() {
-  if (double(absolute((zVelOut))) > maxVel) { 
+  if (double(absolute((zVelOut))) > maxVel) {
     if (zVelOut < 0) {
       zVelOut = (maxVel * -1); 
     }
@@ -174,16 +202,13 @@ void rangeZVel() {
       zVelOut = maxVel; 
     }
   }
-  //this scales the z velocity from 0 to 2*maxVel and then scales it from 0 to maxVel
-  zVelOut += maxVel;
-  zVelOut /= 2;
   //this ranges the z velocity PID output on a scale from 0 to 160 b/c this is essentially thrust
   double rangeCalc = (zVelOut * 160.0) / maxVel;
   if (rangeCalc < 5.0) { rangeCalc = 0.0; }
   rangedZVel = int(rangeCalc);
 }
 void rangeXVel() {
-  //the PID can adjust the drone to have a max correction up to a velocity of 5.0
+  //the PID can adjust the drone to have a max correction up to a velocity of 10.0
   if (double(absolute((xVelOut))) > maxVel) { 
     if (xVelOut < 0) {
       xVelOut = (maxVel * -1); 
@@ -276,8 +301,11 @@ void setup() {
   zAnglePID.SetMode(AUTOMATIC);
   zAnglePID.SetOutputLimits(-360,360);
   xVelPID.SetMode(AUTOMATIC);
+  xVelPID.SetOutputLimits(-maxVel,maxVel);
   yVelPID.SetMode(AUTOMATIC);
+  yVelPID.SetOutputLimits(-maxVel,maxVel);
   zVelPID.SetMode(AUTOMATIC);
+  zVelPID.SetOutputLimits(-maxVel,maxVel);
 }
 
 void loop() {
@@ -288,9 +316,9 @@ void loop() {
   //range the x,y,z velocities from -160 to 160, x and y angles from -90 to 90, and z angle from -40 to 40 PWM
   rangeValues();
   Serial.print(F("X Velocity: "));
-  Serial.print(xAcc);
+  Serial.print(xVel);
   Serial.print(F("Y Velocity: "));
-  Serial.print(yAcc);
+  Serial.print(yVel);
   Serial.print(F("Z Velocity: "));
-  Serial.println(zAcc);
+  Serial.println(zVel);
 }
