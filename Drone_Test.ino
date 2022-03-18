@@ -24,6 +24,8 @@ The code below allows the drone to strafe, turn, and stop abruptly (re-level the
 #define motor4 7
 
 //basic control setup code
+double sourceVoltage = 0.0;
+double sCurrent = 0.0;
 double maxVel = 10.0;
 double maxAngle = 180.0;
 float xAcc = 0.0, yAcc = 0.0, zAcc = 0.0;
