@@ -1,12 +1,14 @@
-int output = 14;
+#include <Servo.h>
+
+Servo motor1;
 
 void setup() {
-  // put your setup code here, to run once:
-  Serial.begin(9600);
-  pinMode(output,OUTPUT);
+  //create a Servo object for the ESC initialized on pin 14 that runs between 1000 and 2000 pulse width
+  motor1.attach(14,1000,2000);
+  motor1.writeMicroseconds(1000); //initialize the signal
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
-  analogWrite(output,150);
+  //the Servo.write() function has a range of 0 to 180 for the motor speed
+  motor1.writeMicroseconds(1200);
 }
